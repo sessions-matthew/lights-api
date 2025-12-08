@@ -191,6 +191,7 @@ async def get_controller(address: str):
 async def execute_command(address: str, command_func, command_type: str = "default"):
     """
     Execute a command on a device and handle connection cleanup.
+    Ensures only one command can be executed per device at a time.
     
     Args:
         address: Device MAC address
@@ -200,28 +201,32 @@ async def execute_command(address: str, command_func, command_type: str = "defau
     Returns:
         Result from command_func
     """
-    controller = None
-    try:
-        controller = await get_controller(address)
-        result = await command_func(controller)
-        
-        # For Triones controllers, add delay before disconnect to ensure command processing
-        if isinstance(controller, TrionesController):
-            # Different delays based on command complexity
-            if command_type in ["color", "mode", "preset"]:
-                # Color and mode commands need more time to process
-                await asyncio.sleep(0.2)
-            elif command_type in ["power", "status"]:
-                # Power and status commands are quick but still need some delay
-                await asyncio.sleep(0.1)
-            else:
-                # Default delay for other commands
-                await asyncio.sleep(0.15)
+    # Get device-specific lock to prevent concurrent access
+    device_lock = await _get_device_lock(address)
+    
+    async with device_lock:
+        controller = None
+        try:
+            controller = await get_controller(address)
+            result = await command_func(controller)
             
-        return result
-    finally:
-        if controller:
-            await controller.disconnect()
+            # For Triones controllers, add delay before disconnect to ensure command processing
+            if isinstance(controller, TrionesController):
+                # Different delays based on command complexity
+                if command_type in ["color", "mode", "preset"]:
+                    # Color and mode commands need more time to process
+                    await asyncio.sleep(0.2)
+                elif command_type in ["power", "status"]:
+                    # Power and status commands are quick but still need some delay
+                    await asyncio.sleep(0.1)
+                else:
+                    # Default delay for other commands
+                    await asyncio.sleep(0.15)
+                
+            return result
+        finally:
+            if controller:
+                await controller.disconnect()
 
 
 # ----- Device cache / background scanner -----
@@ -230,6 +235,18 @@ MAX_SCANS_NOT_SEEN = 12  # Remove devices after 60 seconds (12 * 5s) without bei
 _device_cache: Dict[str, DeviceCacheEntry] = {}  # address -> DeviceCacheEntry
 _cache_lock = asyncio.Lock()
 _cache_task: Optional[asyncio.Task] = None
+
+# ----- Device Access Control -----
+_device_locks: Dict[str, asyncio.Lock] = {}  # address -> Lock for device access
+_device_locks_lock = asyncio.Lock()  # Lock for managing device locks dictionary
+
+async def _get_device_lock(address: str) -> asyncio.Lock:
+    """Get or create a lock for the specified device address"""
+    addr_lower = address.lower()
+    async with _device_locks_lock:
+        if addr_lower not in _device_locks:
+            _device_locks[addr_lower] = asyncio.Lock()
+        return _device_locks[addr_lower]
 
 # ----- Device Groups -----
 GROUPS_FILE = Path("device_groups.json")
