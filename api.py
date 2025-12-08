@@ -144,12 +144,12 @@ async def get_controller(address: str):
     """
     try:
         # Prefer cached scan results when available (background scanner updates this)
-        for controller in await _get_cached_devices():
-            if controller.address.lower() == address.lower():
-                if await controller.connect():
-                    return controller
-                else:
-                    raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
+        # for controller in await _get_cached_devices():
+        #     if controller.address.lower() == address.lower():
+        #         if await controller.connect():
+        #             return controller
+        #         else:
+        #             raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
 
         # Fallback: run a quick discovery if cache missed it
         triones_devices = await TrionesScanner.discover(timeout=5.0)
