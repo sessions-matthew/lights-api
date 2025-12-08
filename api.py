@@ -265,7 +265,7 @@ async def _scan_once(timeout: float = 10.0):
         # Create controllers for discovered BLE devices
         for device in devices:
             # Check if device is a Triones controller (by name or service UUIDs)
-            if any(name in (device.name or "").lower() for name in ["triones", "rgb", "led"]):
+            if any(name in (device.name or "").lower() for name in ["triones"]):
                 combined.append(TrionesController(device))
             # Check if device is a Philips controller
             elif any(name in (device.name or "").lower() for name in ["philips", "hue"]):
