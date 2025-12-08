@@ -8,13 +8,15 @@ Devices are connected per-request and not persisted between requests.
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Any
 import asyncio
 import logging
 import sys
 import json
 from pathlib import Path
 from dataclasses import dataclass
+import uuid
+from datetime import datetime
 
 from triones import TrionesController, TrionesScanner, TrionesStatus, TrionesMode
 from phillips import PhilipsController, PhilipsScanner, PhilipsStatus
@@ -128,6 +130,108 @@ class GroupRGBRequest(GroupActionRequest):
 class GroupHexColorRequest(GroupActionRequest):
     """Hex color request for group"""
     color: str = Field(description="Hex color (e.g., '#FF0000' or 'FF0000')")
+
+# Scene Models
+class DevicePreset(BaseModel):
+    """Individual device preset within a scene"""
+    address: str = Field(description="Device address")
+    is_on: Optional[bool] = Field(None, description="Power state")
+    red: Optional[int] = Field(None, ge=0, le=255, description="Red component (0-255)")
+    green: Optional[int] = Field(None, ge=0, le=255, description="Green component (0-255)")
+    blue: Optional[int] = Field(None, ge=0, le=255, description="Blue component (0-255)")
+    white: Optional[int] = Field(None, ge=0, le=255, description="White intensity (0-255)")
+    brightness: Optional[int] = Field(None, ge=0, le=255, description="Brightness (0-255)")
+    mode: Optional[int] = Field(None, description="Built-in mode")
+    speed: Optional[int] = Field(None, ge=1, le=255, description="Animation speed")
+    temperature: Optional[int] = Field(None, ge=2500, le=9000, description="Color temperature in Kelvin")
+
+class GroupPreset(BaseModel):
+    """Group preset within a scene"""
+    group_name: str = Field(description="Group name")
+    is_on: Optional[bool] = Field(None, description="Power state")
+    red: Optional[int] = Field(None, ge=0, le=255, description="Red component (0-255)")
+    green: Optional[int] = Field(None, ge=0, le=255, description="Green component (0-255)")
+    blue: Optional[int] = Field(None, ge=0, le=255, description="Blue component (0-255)")
+    white: Optional[int] = Field(None, ge=0, le=255, description="White intensity (0-255)")
+    brightness: Optional[int] = Field(None, ge=0, le=255, description="Brightness (0-255)")
+    mode: Optional[int] = Field(None, description="Built-in mode")
+    speed: Optional[int] = Field(None, ge=1, le=255, description="Animation speed")
+    temperature: Optional[int] = Field(None, ge=2500, le=9000, description="Color temperature in Kelvin")
+
+class Scene(BaseModel):
+    """Scene model containing device and group presets"""
+    id: str = Field(description="Unique scene ID")
+    name: str = Field(description="Scene name")
+    description: Optional[str] = Field(None, description="Scene description")
+    device_presets: List[DevicePreset] = Field(default_factory=list, description="Device presets")
+    group_presets: List[GroupPreset] = Field(default_factory=list, description="Group presets")
+    created_at: str = Field(description="Creation timestamp")
+    updated_at: str = Field(description="Last update timestamp")
+
+class CreateSceneRequest(BaseModel):
+    """Create scene request"""
+    name: str = Field(description="Scene name")
+    description: Optional[str] = Field(None, description="Scene description")
+    device_presets: List[DevicePreset] = Field(default_factory=list, description="Device presets")
+    group_presets: List[GroupPreset] = Field(default_factory=list, description="Group presets")
+
+class UpdateSceneRequest(BaseModel):
+    """Update scene request"""
+    name: Optional[str] = Field(None, description="Scene name")
+    description: Optional[str] = Field(None, description="Scene description")
+    device_presets: Optional[List[DevicePreset]] = Field(None, description="Device presets")
+    group_presets: Optional[List[GroupPreset]] = Field(None, description="Group presets")
+
+# Scene Models
+class DevicePreset(BaseModel):
+    """Individual device preset within a scene"""
+    address: str = Field(description="Device address")
+    is_on: Optional[bool] = Field(None, description="Power state")
+    red: Optional[int] = Field(None, ge=0, le=255, description="Red component (0-255)")
+    green: Optional[int] = Field(None, ge=0, le=255, description="Green component (0-255)")
+    blue: Optional[int] = Field(None, ge=0, le=255, description="Blue component (0-255)")
+    white: Optional[int] = Field(None, ge=0, le=255, description="White intensity (0-255)")
+    brightness: Optional[int] = Field(None, ge=0, le=255, description="Brightness (0-255)")
+    mode: Optional[int] = Field(None, description="Built-in mode")
+    speed: Optional[int] = Field(None, ge=1, le=255, description="Animation speed")
+    temperature: Optional[int] = Field(None, ge=2500, le=9000, description="Color temperature in Kelvin")
+
+class GroupPreset(BaseModel):
+    """Group preset within a scene"""
+    group_name: str = Field(description="Group name")
+    is_on: Optional[bool] = Field(None, description="Power state")
+    red: Optional[int] = Field(None, ge=0, le=255, description="Red component (0-255)")
+    green: Optional[int] = Field(None, ge=0, le=255, description="Green component (0-255)")
+    blue: Optional[int] = Field(None, ge=0, le=255, description="Blue component (0-255)")
+    white: Optional[int] = Field(None, ge=0, le=255, description="White intensity (0-255)")
+    brightness: Optional[int] = Field(None, ge=0, le=255, description="Brightness (0-255)")
+    mode: Optional[int] = Field(None, description="Built-in mode")
+    speed: Optional[int] = Field(None, ge=1, le=255, description="Animation speed")
+    temperature: Optional[int] = Field(None, ge=2500, le=9000, description="Color temperature in Kelvin")
+
+class Scene(BaseModel):
+    """Scene model containing device and group presets"""
+    id: str = Field(description="Unique scene ID")
+    name: str = Field(description="Scene name")
+    description: Optional[str] = Field(None, description="Scene description")
+    device_presets: List[DevicePreset] = Field(default_factory=list, description="Device presets")
+    group_presets: List[GroupPreset] = Field(default_factory=list, description="Group presets")
+    created_at: str = Field(description="Creation timestamp")
+    updated_at: str = Field(description="Last update timestamp")
+
+class CreateSceneRequest(BaseModel):
+    """Create scene request"""
+    name: str = Field(description="Scene name")
+    description: Optional[str] = Field(None, description="Scene description")
+    device_presets: List[DevicePreset] = Field(default_factory=list, description="Device presets")
+    group_presets: List[GroupPreset] = Field(default_factory=list, description="Group presets")
+
+class UpdateSceneRequest(BaseModel):
+    """Update scene request"""
+    name: Optional[str] = Field(None, description="Scene name")
+    description: Optional[str] = Field(None, description="Scene description")
+    device_presets: Optional[List[DevicePreset]] = Field(None, description="Device presets")
+    group_presets: Optional[List[GroupPreset]] = Field(None, description="Group presets")
 
 # Helper Functions
 async def connect_triones_with_retry(controller: TrionesController, max_retries: int = 3) -> bool:
@@ -260,6 +364,38 @@ MAX_SCANS_NOT_SEEN = 12  # Remove devices after 60 seconds (12 * 5s) without bei
 _device_cache: Dict[str, DeviceCacheEntry] = {}  # address -> DeviceCacheEntry
 _cache_lock = asyncio.Lock()
 _cache_task: Optional[asyncio.Task] = None
+
+# ----- Scene storage -----
+_scenes_file = Path("scenes.json")
+_scenes_cache: Dict[str, Scene] = {}
+_scenes_lock = asyncio.Lock()
+
+# Scene storage functions
+def load_scenes():
+    """Load scenes from file into cache"""
+    global _scenes_cache
+    if _scenes_file.exists():
+        try:
+            with open(_scenes_file, 'r') as f:
+                scenes_data = json.load(f)
+                _scenes_cache = {scene_id: Scene(**scene_data) for scene_id, scene_data in scenes_data.items()}
+        except Exception as e:
+            logger.error(f"Failed to load scenes: {e}")
+            _scenes_cache = {}
+    else:
+        _scenes_cache = {}
+
+def save_scenes():
+    """Save scenes cache to file"""
+    try:
+        scenes_data = {scene_id: scene.model_dump() for scene_id, scene in _scenes_cache.items()}
+        with open(_scenes_file, 'w') as f:
+            json.dump(scenes_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save scenes: {e}")
+
+# Load scenes on startup
+load_scenes()
 
 # ----- Device Access Control -----
 _device_locks: Dict[str, asyncio.Lock] = {}  # address -> Lock for device access
@@ -1087,6 +1223,286 @@ async def group_set_hex_color(group_name: str, hex_req: GroupHexColorRequest):
         raise HTTPException(status_code=501, detail="Hex color not supported for this device")
     
     return await _execute_group_command(group_name, set_hex, "color")
+
+# ----- Scene Endpoints -----
+
+@app.get("/scenes", response_model=Dict[str, Scene])
+async def list_scenes():
+    """
+    List all scenes
+    
+    Returns:
+        Dictionary of scene IDs to Scene objects
+    """
+    async with _scenes_lock:
+        return dict(_scenes_cache)
+
+@app.get("/scenes/{scene_id}", response_model=Scene)
+async def get_scene(scene_id: str):
+    """
+    Get a specific scene by ID
+    
+    Args:
+        scene_id: Scene ID
+        
+    Returns:
+        Scene object
+        
+    Raises:
+        HTTPException: If scene not found
+    """
+    async with _scenes_lock:
+        if scene_id not in _scenes_cache:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        return _scenes_cache[scene_id]
+
+@app.post("/scenes", response_model=Scene)
+async def create_scene(scene_req: CreateSceneRequest):
+    """
+    Create a new scene
+    
+    Args:
+        scene_req: Scene creation request
+        
+    Returns:
+        Created Scene object
+    """
+    scene_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat()
+    
+    scene = Scene(
+        id=scene_id,
+        name=scene_req.name,
+        description=scene_req.description,
+        device_presets=scene_req.device_presets,
+        group_presets=scene_req.group_presets,
+        created_at=timestamp,
+        updated_at=timestamp
+    )
+    
+    async with _scenes_lock:
+        _scenes_cache[scene_id] = scene
+        save_scenes()
+    
+    return scene
+
+@app.put("/scenes/{scene_id}", response_model=Scene)
+async def update_scene(scene_id: str, scene_req: UpdateSceneRequest):
+    """
+    Update an existing scene
+    
+    Args:
+        scene_id: Scene ID to update
+        scene_req: Scene update request
+        
+    Returns:
+        Updated Scene object
+        
+    Raises:
+        HTTPException: If scene not found
+    """
+    async with _scenes_lock:
+        if scene_id not in _scenes_cache:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        
+        scene = _scenes_cache[scene_id]
+        update_data = scene_req.model_dump(exclude_unset=True)
+        update_data['updated_at'] = datetime.now().isoformat()
+        
+        for key, value in update_data.items():
+            setattr(scene, key, value)
+        
+        save_scenes()
+        return scene
+
+@app.delete("/scenes/{scene_id}", response_model=SuccessResponse)
+async def delete_scene(scene_id: str):
+    """
+    Delete a scene
+    
+    Args:
+        scene_id: Scene ID to delete
+        
+    Returns:
+        Success response
+        
+    Raises:
+        HTTPException: If scene not found
+    """
+    async with _scenes_lock:
+        if scene_id not in _scenes_cache:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        
+        scene_name = _scenes_cache[scene_id].name
+        del _scenes_cache[scene_id]
+        save_scenes()
+    
+    return SuccessResponse(success=True, message=f"Scene '{scene_name}' deleted successfully")
+
+@app.post("/scenes/{scene_id}/activate", response_model=dict)
+async def activate_scene(scene_id: str):
+    """
+    Activate a scene (apply all its presets)
+    
+    Args:
+        scene_id: Scene ID to activate
+        
+    Returns:
+        Results of applying all presets
+        
+    Raises:
+        HTTPException: If scene not found
+    """
+    async with _scenes_lock:
+        if scene_id not in _scenes_cache:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        scene = _scenes_cache[scene_id]
+    
+    results = {
+        "scene_name": scene.name,
+        "device_results": [],
+        "group_results": []
+    }
+    
+    # Apply device presets
+    for preset in scene.device_presets:
+        try:
+            async def apply_device_preset(controller):
+                # Apply power state
+                if preset.is_on is not None:
+                    if preset.is_on:
+                        await controller.turn_on()
+                    else:
+                        await controller.turn_off()
+                
+                # Apply color settings
+                if preset.red is not None and preset.green is not None and preset.blue is not None:
+                    await controller.set_color(preset.red, preset.green, preset.blue)
+                elif preset.white is not None:
+                    await controller.set_white(preset.white)
+                
+                # Apply brightness (for Philips devices)
+                if preset.brightness is not None and hasattr(controller, 'set_brightness'):
+                    await controller.set_brightness(preset.brightness)
+                
+                # Apply mode and speed (for Triones devices)
+                if preset.mode is not None and hasattr(controller, 'set_mode'):
+                    speed = preset.speed if preset.speed is not None else 1
+                    await controller.set_mode(preset.mode, speed)
+                
+                # Apply color temperature (for Kasa devices)
+                if preset.temperature is not None and hasattr(controller, 'set_color_temp'):
+                    await controller.set_color_temp(preset.temperature)
+                
+                return SuccessResponse(success=True, message="Preset applied")
+            
+            result = await execute_command(preset.address, apply_device_preset)
+            results["device_results"].append({
+                "address": preset.address,
+                "success": True,
+                "message": "Preset applied successfully"
+            })
+        except Exception as e:
+            results["device_results"].append({
+                "address": preset.address,
+                "success": False,
+                "error": str(e)
+            })
+    
+    # Apply group presets
+    for preset in scene.group_presets:
+        try:
+            # Create request objects for group operations
+            if preset.is_on is not None:
+                if preset.is_on:
+                    await group_turn_on(preset.group_name)
+                else:
+                    await group_turn_off(preset.group_name)
+            
+            if preset.red is not None and preset.green is not None and preset.blue is not None:
+                rgb_req = GroupRGBRequest(red=preset.red, green=preset.green, blue=preset.blue)
+                await group_set_rgb(preset.group_name, rgb_req)
+            elif preset.white is not None:
+                # Apply white to each device in group individually
+                async with _groups_lock:
+                    if preset.group_name in _groups:
+                        group = _groups[preset.group_name]
+                        for address in group.device_addresses:
+                            try:
+                                white_req = WhiteRequest(intensity=preset.white)
+                                await set_device_white(address, white_req)
+                            except:
+                                pass  # Continue with other devices
+            
+            results["group_results"].append({
+                "group_name": preset.group_name,
+                "success": True,
+                "message": "Group preset applied successfully"
+            })
+        except Exception as e:
+            results["group_results"].append({
+                "group_name": preset.group_name,
+                "success": False,
+                "error": str(e)
+            })
+    
+    return results
+
+@app.post("/scenes/capture", response_model=Scene)
+async def capture_scene(scene_name: str = Query(..., description="Name for the new scene"), 
+                       description: Optional[str] = Query(None, description="Scene description")):
+    """
+    Capture current state of all devices as a new scene
+    
+    Args:
+        scene_name: Name for the new scene
+        description: Optional scene description
+        
+    Returns:
+        Created Scene object with current device states
+    """
+    device_presets = []
+    
+    # Get current state of all cached devices
+    async with _cache_lock:
+        cached_controllers = [entry.controller for entry in _device_cache.values()]
+    
+    for controller in cached_controllers:
+        try:
+            # Get current status
+            if await controller.connect():
+                status = await controller.get_status()
+                
+                preset = DevicePreset(
+                    address=controller.address,
+                    is_on=status.is_on if hasattr(status, 'is_on') else None,
+                    red=status.red if hasattr(status, 'red') else None,
+                    green=status.green if hasattr(status, 'green') else None,
+                    blue=status.blue if hasattr(status, 'blue') else None,
+                    white=status.white if hasattr(status, 'white') else None,
+                    brightness=status.brightness if hasattr(status, 'brightness') else None,
+                    mode=status.mode if hasattr(status, 'mode') else None,
+                    speed=status.speed if hasattr(status, 'speed') else None
+                )
+                device_presets.append(preset)
+                
+                # Disconnect after getting status
+                if isinstance(controller, TrionesController):
+                    await asyncio.sleep(0.1)
+                await controller.disconnect()
+        except Exception as e:
+            logger.warning(f"Failed to capture state for device {controller.address}: {e}")
+            continue
+    
+    # Create scene
+    scene_req = CreateSceneRequest(
+        name=scene_name,
+        description=description,
+        device_presets=device_presets,
+        group_presets=[]  # Could add group state capture later
+    )
+    
+    return await create_scene(scene_req)
 
 @app.get("/modes", response_model=dict)
 async def list_modes():
