@@ -1358,6 +1358,12 @@ async def activate_scene(scene_id: str):
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         scene = _scenes_cache[scene_id]
     
+    print(f"🎬 Activating scene '{scene.name}' (ID: {scene_id})")
+    print(f"📱 Scene has {len(scene.device_presets)} device presets and {len(scene.group_presets)} group presets")
+    
+    for i, preset in enumerate(scene.device_presets):
+        print(f"   Device {i+1}: {preset.address} - Power: {preset.is_on}, RGB: ({preset.red}, {preset.green}, {preset.blue})")
+    
     results = {
         "scene_name": scene.name,
         "device_results": [],
@@ -1366,10 +1372,15 @@ async def activate_scene(scene_id: str):
     
     # Apply device presets concurrently for better performance
     async def apply_single_device_preset(preset):
+        print(f"🎯 Applying preset to device {preset.address}")
+        print(f"   Power: {preset.is_on}, RGB: ({preset.red}, {preset.green}, {preset.blue}), White: {preset.white}")
         try:
             async def apply_device_preset(controller):
+                print(f"🔗 Connected to controller {controller.address} (type: {type(controller).__name__})")
+                
                 # Apply power state
                 if preset.is_on is not None:
+                    print(f"🔋 Setting power to {preset.is_on} for {controller.address}")
                     if preset.is_on:
                         await controller.turn_on()
                     else:
@@ -1377,32 +1388,40 @@ async def activate_scene(scene_id: str):
                 
                 # Apply color settings
                 if preset.red is not None and preset.green is not None and preset.blue is not None:
+                    print(f"🎨 Setting RGB color ({preset.red}, {preset.green}, {preset.blue}) for {controller.address}")
                     await controller.set_color(preset.red, preset.green, preset.blue)
                 elif preset.white is not None:
+                    print(f"⚪ Setting white intensity {preset.white} for {controller.address}")
                     await controller.set_white(preset.white)
                 
                 # Apply brightness (for Philips devices)
                 if preset.brightness is not None and hasattr(controller, 'set_brightness'):
+                    print(f"💡 Setting brightness {preset.brightness} for {controller.address}")
                     await controller.set_brightness(preset.brightness)
                 
                 # Apply mode and speed (for Triones devices)
                 if preset.mode is not None and hasattr(controller, 'set_mode'):
                     speed = preset.speed if preset.speed is not None else 1
+                    print(f"🌈 Setting mode {preset.mode} with speed {speed} for {controller.address}")
                     await controller.set_mode(preset.mode, speed)
                 
                 # Apply color temperature (for Kasa devices)
                 if preset.temperature is not None and hasattr(controller, 'set_color_temp'):
+                    print(f"🌡️ Setting color temperature {preset.temperature}K for {controller.address}")
                     await controller.set_color_temp(preset.temperature)
                 
+                print(f"✅ Successfully applied all settings to {controller.address}")
                 return SuccessResponse(success=True, message="Preset applied")
             
             result = await execute_command(preset.address, apply_device_preset)
+            print(f"🎉 Device preset completed successfully for {preset.address}")
             return {
                 "address": preset.address,
                 "success": True,
                 "message": "Preset applied successfully"
             }
         except Exception as e:
+            print(f"❌ Device preset failed for {preset.address}: {str(e)}")
             return {
                 "address": preset.address,
                 "success": False,
