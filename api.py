@@ -939,7 +939,15 @@ async def group_power_on(group_name: str):
         Group operation results
     """
     async def power_on(controller):
-        success = await controller.turn_on()
+        if isinstance(controller, TrionesController) and hasattr(controller, "power_on"):
+            success = await controller.power_on()
+        elif isinstance(controller, PhilipsController) and hasattr(controller, "set_power"):
+            success = await controller.set_power(0x01)
+        elif isinstance(controller, KasaController) and hasattr(controller, "power_on"):
+            success = await controller.power_on()
+        else:
+            raise HTTPException(status_code=501, detail="Power on not supported for this device")
+        
         if not success:
             raise HTTPException(status_code=503, detail="Failed to turn on device")
         return SuccessResponse(success=True, message="Device turned on")
@@ -958,7 +966,15 @@ async def group_power_off(group_name: str):
         Group operation results
     """
     async def power_off(controller):
-        success = await controller.turn_off()
+        if isinstance(controller, TrionesController) and hasattr(controller, "power_off"):
+            success = await controller.power_off()
+        elif isinstance(controller, PhilipsController) and hasattr(controller, "set_power"):
+            success = await controller.set_power(0x00)
+        elif isinstance(controller, KasaController) and hasattr(controller, "power_off"):
+            success = await controller.power_off()
+        else:
+            raise HTTPException(status_code=501, detail="Power off not supported for this device")
+        
         if not success:
             raise HTTPException(status_code=503, detail="Failed to turn off device")
         return SuccessResponse(success=True, message="Device turned off")
