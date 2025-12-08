@@ -151,8 +151,8 @@ async def get_controller(address: str):
             if controller.address.lower() == address.lower():
                 if await controller.connect():
                     return controller
-                else:
-                    raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
+                # If cached connection failed, don't try fallback discovery for same device
+                raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
 
         # Fallback: run a quick discovery if cache missed it
         triones_devices = await TrionesScanner.discover(timeout=5.0)
