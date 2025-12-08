@@ -182,57 +182,6 @@ class UpdateSceneRequest(BaseModel):
     device_presets: Optional[List[DevicePreset]] = Field(None, description="Device presets")
     group_presets: Optional[List[GroupPreset]] = Field(None, description="Group presets")
 
-# Scene Models
-class DevicePreset(BaseModel):
-    """Individual device preset within a scene"""
-    address: str = Field(description="Device address")
-    is_on: Optional[bool] = Field(None, description="Power state")
-    red: Optional[int] = Field(None, ge=0, le=255, description="Red component (0-255)")
-    green: Optional[int] = Field(None, ge=0, le=255, description="Green component (0-255)")
-    blue: Optional[int] = Field(None, ge=0, le=255, description="Blue component (0-255)")
-    white: Optional[int] = Field(None, ge=0, le=255, description="White intensity (0-255)")
-    brightness: Optional[int] = Field(None, ge=0, le=255, description="Brightness (0-255)")
-    mode: Optional[int] = Field(None, description="Built-in mode")
-    speed: Optional[int] = Field(None, ge=1, le=255, description="Animation speed")
-    temperature: Optional[int] = Field(None, ge=2500, le=9000, description="Color temperature in Kelvin")
-
-class GroupPreset(BaseModel):
-    """Group preset within a scene"""
-    group_name: str = Field(description="Group name")
-    is_on: Optional[bool] = Field(None, description="Power state")
-    red: Optional[int] = Field(None, ge=0, le=255, description="Red component (0-255)")
-    green: Optional[int] = Field(None, ge=0, le=255, description="Green component (0-255)")
-    blue: Optional[int] = Field(None, ge=0, le=255, description="Blue component (0-255)")
-    white: Optional[int] = Field(None, ge=0, le=255, description="White intensity (0-255)")
-    brightness: Optional[int] = Field(None, ge=0, le=255, description="Brightness (0-255)")
-    mode: Optional[int] = Field(None, description="Built-in mode")
-    speed: Optional[int] = Field(None, ge=1, le=255, description="Animation speed")
-    temperature: Optional[int] = Field(None, ge=2500, le=9000, description="Color temperature in Kelvin")
-
-class Scene(BaseModel):
-    """Scene model containing device and group presets"""
-    id: str = Field(description="Unique scene ID")
-    name: str = Field(description="Scene name")
-    description: Optional[str] = Field(None, description="Scene description")
-    device_presets: List[DevicePreset] = Field(default_factory=list, description="Device presets")
-    group_presets: List[GroupPreset] = Field(default_factory=list, description="Group presets")
-    created_at: str = Field(description="Creation timestamp")
-    updated_at: str = Field(description="Last update timestamp")
-
-class CreateSceneRequest(BaseModel):
-    """Create scene request"""
-    name: str = Field(description="Scene name")
-    description: Optional[str] = Field(None, description="Scene description")
-    device_presets: List[DevicePreset] = Field(default_factory=list, description="Device presets")
-    group_presets: List[GroupPreset] = Field(default_factory=list, description="Group presets")
-
-class UpdateSceneRequest(BaseModel):
-    """Update scene request"""
-    name: Optional[str] = Field(None, description="Scene name")
-    description: Optional[str] = Field(None, description="Scene description")
-    device_presets: Optional[List[DevicePreset]] = Field(None, description="Device presets")
-    group_presets: Optional[List[GroupPreset]] = Field(None, description="Group presets")
-
 # Helper Functions
 async def connect_triones_with_retry(controller: TrionesController, max_retries: int = 3) -> bool:
     """
@@ -607,7 +556,14 @@ async def root():
             "group_power_on": "/groups/{group_name}/power/on",
             "group_power_off": "/groups/{group_name}/power/off",
             "group_set_rgb": "/groups/{group_name}/color/rgb",
-            "group_set_hex": "/groups/{group_name}/color/hex"
+            "group_set_hex": "/groups/{group_name}/color/hex",
+            "scenes": "/scenes",
+            "get_scene": "/scenes/{scene_id}",
+            "create_scene": "/scenes",
+            "update_scene": "/scenes/{scene_id}",
+            "delete_scene": "/scenes/{scene_id}",
+            "activate_scene": "/scenes/{scene_id}/activate",
+            "capture_scene": "/scenes/capture"
         }
     }
 
