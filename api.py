@@ -144,18 +144,31 @@ async def get_controller(address: str):
     """
     try:
         # Prefer cached scan results when available (background scanner updates this)
-        # for controller in await _get_cached_devices():
-        #     if controller.address.lower() == address.lower():
-        #         if await controller.connect():
-        #             return controller
-        #         else:
-        #             raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
+        async with _cache_lock:
+            cached_controllers = [entry.controller for entry in _device_cache.values()]
+        
+        for controller in cached_controllers:
+            if controller.address.lower() == address.lower():
+                if await controller.connect():
+                    # Update cache with connected controller to preserve services/state
+                    async with _cache_lock:
+                        addr_lower = address.lower()
+                        if addr_lower in _device_cache:
+                            _device_cache[addr_lower].controller = controller
+                            _device_cache[addr_lower].scans_not_seen = 0
+                    return controller
+                else:
+                    raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
 
         # Fallback: run a quick discovery if cache missed it
         triones_devices = await TrionesScanner.discover(timeout=5.0)
         for controller in triones_devices:
             if controller.address.lower() == address.lower():
                 if await controller.connect():
+                    # Add newly connected device to cache
+                    async with _cache_lock:
+                        addr_lower = address.lower()
+                        _device_cache[addr_lower] = DeviceCacheEntry(controller=controller)
                     return controller
                 else:
                     raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
@@ -164,6 +177,10 @@ async def get_controller(address: str):
         for controller in philips_devices:
             if controller.address.lower() == address.lower():
                 if await controller.connect():
+                    # Add newly connected device to cache
+                    async with _cache_lock:
+                        addr_lower = address.lower()
+                        _device_cache[addr_lower] = DeviceCacheEntry(controller=controller)
                     return controller
                 else:
                     raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
@@ -172,6 +189,10 @@ async def get_controller(address: str):
         for controller in kasa_devices:
             if controller.address.lower() == address.lower():
                 if await controller.connect():
+                    # Add newly connected device to cache
+                    async with _cache_lock:
+                        addr_lower = address.lower()
+                        _device_cache[addr_lower] = DeviceCacheEntry(controller=controller)
                     return controller
                 else:
                     raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
@@ -214,6 +235,14 @@ async def execute_command(address: str, command_func, command_type: str = "defau
                 # Default delay for other commands
                 await asyncio.sleep(0.15)
             
+        # Update cache with controller after successful command execution
+        # This preserves any discovered services or connection state
+        async with _cache_lock:
+            addr_lower = address.lower()
+            if addr_lower in _device_cache:
+                _device_cache[addr_lower].controller = controller
+                _device_cache[addr_lower].scans_not_seen = 0
+        
         return result
     finally:
         if controller:
