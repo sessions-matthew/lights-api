@@ -175,7 +175,7 @@ class KasaController:
                 light_module = self.device.modules['Light']
                 if hasattr(light_module, 'set_hsv'):
                     from kasa import HSV
-                    await light_module.set_hsv(HSV(h, s, v))
+                    await light_module.set_hsv(HSV(hue=h, saturation=s, value=v))
                     return True
             # Fallback to direct method
             elif hasattr(self.device, 'set_hsv'):
