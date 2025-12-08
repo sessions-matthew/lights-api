@@ -1364,8 +1364,8 @@ async def activate_scene(scene_id: str):
         "group_results": []
     }
     
-    # Apply device presets
-    for preset in scene.device_presets:
+    # Apply device presets concurrently for better performance
+    async def apply_single_device_preset(preset):
         try:
             async def apply_device_preset(controller):
                 # Apply power state
@@ -1397,20 +1397,25 @@ async def activate_scene(scene_id: str):
                 return SuccessResponse(success=True, message="Preset applied")
             
             result = await execute_command(preset.address, apply_device_preset)
-            results["device_results"].append({
+            return {
                 "address": preset.address,
                 "success": True,
                 "message": "Preset applied successfully"
-            })
+            }
         except Exception as e:
-            results["device_results"].append({
+            return {
                 "address": preset.address,
                 "success": False,
                 "error": str(e)
-            })
+            }
     
-    # Apply group presets
-    for preset in scene.group_presets:
+    # Process all device presets concurrently
+    if scene.device_presets:
+        device_tasks = [apply_single_device_preset(preset) for preset in scene.device_presets]
+        results["device_results"] = await asyncio.gather(*device_tasks)
+    
+    # Apply group presets concurrently for better performance
+    async def apply_single_group_preset(preset):
         try:
             # Create request objects for group operations
             if preset.is_on is not None:
@@ -1434,17 +1439,22 @@ async def activate_scene(scene_id: str):
                             except:
                                 pass  # Continue with other devices
             
-            results["group_results"].append({
+            return {
                 "group_name": preset.group_name,
                 "success": True,
                 "message": "Group preset applied successfully"
-            })
+            }
         except Exception as e:
-            results["group_results"].append({
+            return {
                 "group_name": preset.group_name,
                 "success": False,
                 "error": str(e)
-            })
+            }
+    
+    # Process all group presets concurrently
+    if scene.group_presets:
+        group_tasks = [apply_single_group_preset(preset) for preset in scene.group_presets]
+        results["group_results"] = await asyncio.gather(*group_tasks)
     
     return results
 
