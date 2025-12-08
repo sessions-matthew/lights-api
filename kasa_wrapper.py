@@ -179,7 +179,7 @@ class KasaController:
                     return True
             # Fallback to direct method
             elif hasattr(self.device, 'set_hsv'):
-                await self.device.set_hsv(h, s, v)
+                await self.device.set_hsv(hue=h, saturation=s, value=v)
                 return True
             return False
         except Exception as e:
