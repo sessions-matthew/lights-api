@@ -130,6 +130,27 @@ class GroupHexColorRequest(GroupActionRequest):
     color: str = Field(description="Hex color (e.g., '#FF0000' or 'FF0000')")
 
 # Helper Functions
+async def connect_triones_with_retry(controller: TrionesController, max_retries: int = 3) -> bool:
+    """
+    Attempt to connect to a Triones device with retry logic.
+    
+    Args:
+        controller: TrionesController instance
+        max_retries: Maximum number of connection attempts (default: 3)
+        
+    Returns:
+        bool: True if connection successful, False otherwise
+    """
+    for attempt in range(max_retries):
+        try:
+            if await controller.connect():
+                return True
+        except Exception as e:
+            print(f"Triones connection attempt {attempt + 1} failed for {controller.address}: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(0.5)  # Brief delay between retries
+    return False
+
 async def get_controller(address: str):
     """
     Get a controller by address and connect to it.
@@ -150,8 +171,12 @@ async def get_controller(address: str):
         
         for controller in cached_controllers:
             if controller.address.lower() == address.lower():
-                if await controller.connect():
-                    return controller
+                if isinstance(controller, TrionesController):
+                    if await connect_triones_with_retry(controller):
+                        return controller
+                else:
+                    if await controller.connect():
+                        return controller
                 # If cached connection failed, don't try fallback discovery for same device
                 raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
 
@@ -159,7 +184,7 @@ async def get_controller(address: str):
         triones_devices = await TrionesScanner.discover(timeout=5.0)
         for controller in triones_devices:
             if controller.address.lower() == address.lower():
-                if await controller.connect():
+                if await connect_triones_with_retry(controller):
                     return controller
                 else:
                     raise HTTPException(status_code=503, detail=f"Failed to connect to device {address}")
