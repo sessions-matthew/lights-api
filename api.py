@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from triones import TrionesController, TrionesScanner, TrionesStatus, TrionesMode
 from phillips import PhilipsController, PhilipsScanner, PhilipsStatus
 from kasa_wrapper import KasaController, KasaScanner, KasaStatus
+from bleak import BleakScanner
 
 @dataclass
 class DeviceCacheEntry:
@@ -224,8 +225,8 @@ async def execute_command(address: str, command_func, command_type: str = "defau
 
 
 # ----- Device cache / background scanner -----
-SCAN_INTERVAL = 600  # 10 minutes
-MAX_SCANS_NOT_SEEN = 10  # Remove devices after 10 scans without being seen
+SCAN_INTERVAL = 5  # 5 seconds for continuous scanning
+MAX_SCANS_NOT_SEEN = 12  # Remove devices after 60 seconds (12 * 5s) without being seen
 _device_cache: Dict[str, DeviceCacheEntry] = {}  # address -> DeviceCacheEntry
 _cache_lock = asyncio.Lock()
 _cache_task: Optional[asyncio.Task] = None
@@ -235,30 +236,34 @@ GROUPS_FILE = Path("device_groups.json")
 _groups: Dict[str, DeviceGroup] = {}  # group_name -> DeviceGroup
 _groups_lock = asyncio.Lock()
 
-async def _scan_once(timeout: float = 5.0):
+async def _scan_once(timeout: float = 10.0):
     """Perform a single discovery across supported scanners and update cache."""
     try:
-        triones = await TrionesScanner.discover(timeout=timeout)
+        devices = await BleakScanner.discover(timeout=timeout)
+        logger.debug(f"BleakScanner discovered {len(devices)} devices")
+        
+        # Convert discovered BLE devices to controller instances
+        combined: List[Union[TrionesController, PhilipsController, KasaController]] = []
+        
+        # Create controllers for discovered BLE devices
+        for device in devices:
+            # Check if device is a Triones controller (by name or service UUIDs)
+            if any(name in (device.name or "").lower() for name in ["triones", "rgb", "led"]):
+                combined.append(TrionesController(device))
+            # Check if device is a Philips controller
+            elif any(name in (device.name or "").lower() for name in ["philips", "hue"]):
+                combined.append(PhilipsController(device))
+        
+        # Still scan for Kasa (WiFi) devices separately since they're not BLE
+        try:
+            kasa = await KasaScanner.discover(timeout=timeout)
+            combined.extend(kasa)
+        except Exception as e:
+            logger.debug(f"KasaScanner.discover failed: {e}")
+            
     except Exception as e:
-        logger.debug(f"TrionesScanner.discover failed: {e}")
-        triones = []
-
-    try:
-        philips = await PhilipsScanner.discover(timeout=timeout)
-    except Exception as e:
-        logger.debug(f"PhilipsScanner.discover failed: {e}")
-        philips = []
-
-    try:
-        kasa = await KasaScanner.discover(timeout=timeout)
-    except Exception as e:
-        logger.debug(f"KasaScanner.discover failed: {e}")
-        kasa = []
-
-    combined: List[Union[TrionesController, PhilipsController, KasaController]] = []
-    combined.extend(triones)
-    combined.extend(philips)
-    combined.extend(kasa)
+        logger.debug(f"BleakScanner.discover failed: {e}")
+        combined = []
 
     async with _cache_lock:
         # Create a set of currently discovered device addresses (case insensitive)
