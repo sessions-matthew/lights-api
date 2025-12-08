@@ -184,13 +184,14 @@ async def get_controller(address: str):
         logger.error(f"Error getting controller: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def execute_command(address: str, command_func):
+async def execute_command(address: str, command_func, command_type: str = "default"):
     """
     Execute a command on a device and handle connection cleanup.
     
     Args:
         address: Device MAC address
         command_func: Async function to execute command
+        command_type: Type of command for specialized handling
         
     Returns:
         Result from command_func
@@ -199,6 +200,20 @@ async def execute_command(address: str, command_func):
     try:
         controller = await get_controller(address)
         result = await command_func(controller)
+        
+        # For Triones controllers, add delay before disconnect to ensure command processing
+        if isinstance(controller, TrionesController):
+            # Different delays based on command complexity
+            if command_type in ["color", "mode", "preset"]:
+                # Color and mode commands need more time to process
+                await asyncio.sleep(0.2)
+            elif command_type in ["power", "status"]:
+                # Power and status commands are quick but still need some delay
+                await asyncio.sleep(0.1)
+            else:
+                # Default delay for other commands
+                await asyncio.sleep(0.15)
+            
         return result
     finally:
         if controller:
@@ -318,7 +333,7 @@ async def _get_group(group_name: str) -> DeviceGroup:
             raise HTTPException(status_code=404, detail=f"Group '{group_name}' not found")
         return _groups[group_name]
 
-async def _execute_group_command(group_name: str, command_func):
+async def _execute_group_command(group_name: str, command_func, command_type: str = "default"):
     """Execute a command on all devices in a group"""
     group = await _get_group(group_name)
     results = []
@@ -326,7 +341,7 @@ async def _execute_group_command(group_name: str, command_func):
     
     for address in group.device_addresses:
         try:
-            result = await execute_command(address, command_func)
+            result = await execute_command(address, command_func, command_type)
             results.append({"address": address, "result": result})
         except Exception as e:
             errors.append({"address": address, "error": str(e)})
@@ -512,7 +527,7 @@ async def get_device_status(address: str):
 
         raise HTTPException(status_code=500, detail="Unknown controller type")
     
-    return await execute_command(address, get_status)
+    return await execute_command(address, get_status, "status")
 
 @app.post("/devices/{address}/power/on", response_model=SuccessResponse)
 async def power_on_device(address: str):
@@ -549,7 +564,7 @@ async def power_on_device(address: str):
 
         raise HTTPException(status_code=501, detail="Power on not supported for this device")
     
-    return await execute_command(address, power_on)
+    return await execute_command(address, power_on, "power")
 
 @app.post("/devices/{address}/power/off", response_model=SuccessResponse)
 async def power_off_device(address: str):
@@ -583,7 +598,7 @@ async def power_off_device(address: str):
 
         raise HTTPException(status_code=501, detail="Power off not supported for this device")
     
-    return await execute_command(address, power_off)
+    return await execute_command(address, power_off, "power")
 
 
 @app.get("/devices/{address}/pair", response_model=SuccessResponse)
@@ -615,7 +630,7 @@ async def pair_device(address: str):
 
         raise HTTPException(status_code=500, detail="Unknown controller type")
 
-    return await execute_command(address, do_pair)
+    return await execute_command(address, do_pair, "pairing")
 
 @app.post("/devices/{address}/color/rgb", response_model=SuccessResponse)
 async def set_rgb_color(address: str, rgb: RGBRequest):
@@ -644,7 +659,7 @@ async def set_rgb_color(address: str, rgb: RGBRequest):
 
         raise HTTPException(status_code=501, detail="RGB color not supported for this device")
     
-    return await execute_command(address, set_color)
+    return await execute_command(address, set_color, "color")
 
 @app.post("/devices/{address}/color/hex", response_model=SuccessResponse)
 async def set_hex_color(address: str, hex_color: HexColorRequest):
@@ -673,7 +688,7 @@ async def set_hex_color(address: str, hex_color: HexColorRequest):
 
         raise HTTPException(status_code=501, detail="Hex color not supported for this device")
     
-    return await execute_command(address, set_color)
+    return await execute_command(address, set_color, "color")
 
 @app.post("/devices/{address}/color/white", response_model=SuccessResponse)
 async def set_white_color(address: str, white: WhiteRequest):
@@ -712,7 +727,7 @@ async def set_white_color(address: str, white: WhiteRequest):
 
         raise HTTPException(status_code=501, detail="White/brightness not supported for this device")
     
-    return await execute_command(address, set_color)
+    return await execute_command(address, set_color, "color")
 
 @app.post("/devices/{address}/color/temperature", response_model=SuccessResponse)
 async def set_color_temperature(address: str, temp_req: ColorTempRequest):
@@ -735,7 +750,7 @@ async def set_color_temperature(address: str, temp_req: ColorTempRequest):
 
         raise HTTPException(status_code=501, detail="Color temperature not supported for this device")
     
-    return await execute_command(address, set_temp)
+    return await execute_command(address, set_temp, "color")
 
 @app.post("/devices/{address}/mode", response_model=SuccessResponse)
 async def set_built_in_mode(address: str, mode_req: ModeRequest):
@@ -758,7 +773,7 @@ async def set_built_in_mode(address: str, mode_req: ModeRequest):
 
         raise HTTPException(status_code=501, detail="Built-in modes not supported for this device")
     
-    return await execute_command(address, set_mode)
+    return await execute_command(address, set_mode, "mode")
 
 # ----- Device Group Endpoints -----
 
@@ -900,7 +915,7 @@ async def group_power_on(group_name: str):
             raise HTTPException(status_code=503, detail="Failed to turn on device")
         return SuccessResponse(success=True, message="Device turned on")
     
-    return await _execute_group_command(group_name, power_on)
+    return await _execute_group_command(group_name, power_on, "power")
 
 @app.post("/groups/{group_name}/power/off", response_model=dict)
 async def group_power_off(group_name: str):
@@ -919,7 +934,7 @@ async def group_power_off(group_name: str):
             raise HTTPException(status_code=503, detail="Failed to turn off device")
         return SuccessResponse(success=True, message="Device turned off")
     
-    return await _execute_group_command(group_name, power_off)
+    return await _execute_group_command(group_name, power_off, "power")
 
 @app.post("/groups/{group_name}/color/rgb", response_model=dict)
 async def group_set_rgb_color(group_name: str, rgb_req: GroupRGBRequest):
@@ -954,7 +969,7 @@ async def group_set_rgb_color(group_name: str, rgb_req: GroupRGBRequest):
         
         raise HTTPException(status_code=501, detail="RGB color not supported for this device")
     
-    return await _execute_group_command(group_name, set_rgb)
+    return await _execute_group_command(group_name, set_rgb, "color")
 
 @app.post("/groups/{group_name}/color/hex", response_model=dict)
 async def group_set_hex_color(group_name: str, hex_req: GroupHexColorRequest):
@@ -1001,7 +1016,7 @@ async def group_set_hex_color(group_name: str, hex_req: GroupHexColorRequest):
         
         raise HTTPException(status_code=501, detail="Hex color not supported for this device")
     
-    return await _execute_group_command(group_name, set_hex)
+    return await _execute_group_command(group_name, set_hex, "color")
 
 @app.get("/modes", response_model=dict)
 async def list_modes():
