@@ -1382,33 +1382,65 @@ async def activate_scene(scene_id: str):
                 if preset.is_on is not None:
                     print(f"🔋 Setting power to {preset.is_on} for {controller.address}")
                     if preset.is_on:
-                        await controller.turn_on()
+                        if isinstance(controller, TrionesController) and hasattr(controller, "power_on"):
+                            await controller.power_on()
+                        elif isinstance(controller, PhilipsController) and hasattr(controller, "set_power"):
+                            await controller.set_power(0x01)
+                        elif isinstance(controller, KasaController) and hasattr(controller, "power_on"):
+                            await controller.power_on()
                     else:
-                        await controller.turn_off()
+                        if isinstance(controller, TrionesController) and hasattr(controller, "power_off"):
+                            await controller.power_off()
+                        elif isinstance(controller, PhilipsController) and hasattr(controller, "set_power"):
+                            await controller.set_power(0x00)
+                        elif isinstance(controller, KasaController) and hasattr(controller, "power_off"):
+                            await controller.power_off()
                 
                 # Apply color settings
                 if preset.red is not None and preset.green is not None and preset.blue is not None:
                     print(f"🎨 Setting RGB color ({preset.red}, {preset.green}, {preset.blue}) for {controller.address}")
-                    await controller.set_color(preset.red, preset.green, preset.blue)
+                    if isinstance(controller, TrionesController) and hasattr(controller, "set_rgb"):
+                        await controller.set_rgb(preset.red, preset.green, preset.blue)
+                    elif isinstance(controller, PhilipsController) and hasattr(controller, "set_rgb"):
+                        await controller.set_rgb(preset.red, preset.green, preset.blue)
+                    elif isinstance(controller, KasaController) and hasattr(controller, "set_hsv"):
+                        # Convert RGB to HSV for Kasa devices
+                        import colorsys
+                        h, s, v = colorsys.rgb_to_hsv(preset.red/255.0, preset.green/255.0, preset.blue/255.0)
+                        await controller.set_hsv(int(h*360), int(s*100), int(v*100))
                 elif preset.white is not None:
                     print(f"⚪ Setting white intensity {preset.white} for {controller.address}")
-                    await controller.set_white(preset.white)
+                    if isinstance(controller, TrionesController) and hasattr(controller, "set_white"):
+                        await controller.set_white(preset.white)
+                    elif isinstance(controller, PhilipsController) and hasattr(controller, "set_brightness"):
+                        await controller.set_brightness(preset.white)
+                    elif isinstance(controller, KasaController) and hasattr(controller, "set_brightness"):
+                        # Convert 0-255 to 0-100 for Kasa
+                        brightness_percent = int((preset.white / 255) * 100)
+                        await controller.set_brightness(brightness_percent)
                 
                 # Apply brightness (for Philips devices)
-                if preset.brightness is not None and hasattr(controller, 'set_brightness'):
+                if preset.brightness is not None:
                     print(f"💡 Setting brightness {preset.brightness} for {controller.address}")
-                    await controller.set_brightness(preset.brightness)
+                    if isinstance(controller, PhilipsController) and hasattr(controller, 'set_brightness'):
+                        await controller.set_brightness(preset.brightness)
+                    elif isinstance(controller, KasaController) and hasattr(controller, 'set_brightness'):
+                        # Convert 0-255 to 0-100 for Kasa
+                        brightness_percent = int((preset.brightness / 255) * 100)
+                        await controller.set_brightness(brightness_percent)
                 
-                # Apply mode and speed (for Triones devices)
-                if preset.mode is not None and hasattr(controller, 'set_mode'):
+                # Apply mode and speed (for Triones devices only)
+                if preset.mode is not None and isinstance(controller, TrionesController):
                     speed = preset.speed if preset.speed is not None else 1
                     print(f"🌈 Setting mode {preset.mode} with speed {speed} for {controller.address}")
-                    await controller.set_mode(preset.mode, speed)
+                    if hasattr(controller, 'set_built_in_mode'):
+                        await controller.set_built_in_mode(preset.mode, speed)
                 
-                # Apply color temperature (for Kasa devices)
-                if preset.temperature is not None and hasattr(controller, 'set_color_temp'):
+                # Apply color temperature (for Kasa devices only)
+                if preset.temperature is not None and isinstance(controller, KasaController):
                     print(f"🌡️ Setting color temperature {preset.temperature}K for {controller.address}")
-                    await controller.set_color_temp(preset.temperature)
+                    if hasattr(controller, 'set_color_temp'):
+                        await controller.set_color_temp(preset.temperature)
                 
                 print(f"✅ Successfully applied all settings to {controller.address}")
                 return SuccessResponse(success=True, message="Preset applied")
