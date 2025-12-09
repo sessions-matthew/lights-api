@@ -897,16 +897,28 @@ async def set_color_temperature(address: str, temp_req: ColorTempRequest):
     """
     async def set_temp(controller):
         if isinstance(controller, KasaController) and hasattr(controller, "set_color_temp"):
+            # Set color temperature
             success = await controller.set_color_temp(temp_req.temperature)
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set color temperature")
-            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K at {temp_req.intensity*100:.0f}% intensity (kasa)")
+            
+            # Set brightness if intensity is provided
+            if temp_req.intensity is not None and hasattr(controller, "set_brightness"):
+                # Convert 0.0-1.0 to 0-100 for Kasa devices
+                brightness_percent = int(temp_req.intensity * 100)
+                brightness_success = await controller.set_brightness(brightness_percent)
+                if not brightness_success:
+                    logger.warning(f"Color temperature set but failed to set brightness on Kasa device {controller.address}")
+            
+            intensity_msg = f" at {temp_req.intensity*100:.0f}% intensity" if temp_req.intensity is not None else ""
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K{intensity_msg} (kasa)")
         
         elif isinstance(controller, TrionesController) and hasattr(controller, "set_temperature"):
             success = await controller.set_temperature(temp_req.temperature, brightness=temp_req.intensity)
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set color temperature")
-            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K at {temp_req.intensity*100:.0f}% intensity (triones)")
+            intensity_msg = f" at {temp_req.intensity*100:.0f}% intensity" if temp_req.intensity is not None else ""
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K{intensity_msg} (triones)")
 
         raise HTTPException(status_code=501, detail="Color temperature not supported for this device")
     
@@ -1244,16 +1256,28 @@ async def group_set_color_temperature(group_name: str, temp_req: GroupColorTempR
     """
     async def set_temp(controller):
         if isinstance(controller, KasaController) and hasattr(controller, "set_color_temp"):
+            # Set color temperature
             success = await controller.set_color_temp(temp_req.temperature)
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set color temperature")
-            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K at {temp_req.intensity*100:.0f}% intensity (kasa)")
+            
+            # Set brightness if intensity is provided
+            if temp_req.intensity is not None and hasattr(controller, "set_brightness"):
+                # Convert 0.0-1.0 to 0-100 for Kasa devices
+                brightness_percent = int(temp_req.intensity * 100)
+                brightness_success = await controller.set_brightness(brightness_percent)
+                if not brightness_success:
+                    logger.warning(f"Color temperature set but failed to set brightness on Kasa device {controller.address}")
+            
+            intensity_msg = f" at {temp_req.intensity*100:.0f}% intensity" if temp_req.intensity is not None else ""
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K{intensity_msg} (kasa)")
         
         elif isinstance(controller, TrionesController) and hasattr(controller, "set_temperature"):
             success = await controller.set_temperature(temp_req.temperature, brightness=temp_req.intensity)
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set color temperature")
-            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K at {temp_req.intensity*100:.0f}% intensity (triones)")
+            intensity_msg = f" at {temp_req.intensity*100:.0f}% intensity" if temp_req.intensity is not None else ""
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K{intensity_msg} (triones)")
         
         raise HTTPException(status_code=501, detail="Color temperature not supported for this device")
     
