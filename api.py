@@ -135,6 +135,10 @@ class GroupWhiteRequest(GroupActionRequest):
     """White intensity request for group"""
     intensity: int = Field(ge=0, le=255, description="White intensity (0-255)")
 
+class GroupColorTempRequest(GroupActionRequest):
+    """Color temperature request for group"""
+    temperature: int = Field(ge=2500, le=9000, description="Color temperature in Kelvin (2500-9000)")
+
 # Scene Models
 class DevicePreset(BaseModel):
     """Individual device preset within a scene"""
@@ -562,6 +566,7 @@ async def root():
             "group_set_rgb": "/groups/{group_name}/color/rgb",
             "group_set_hex": "/groups/{group_name}/color/hex",
             "group_set_white": "/groups/{group_name}/color/white",
+            "group_set_color_temp": "/groups/{group_name}/color/temperature",
             "scenes": "/scenes",
             "get_scene": "/scenes/{scene_id}",
             "create_scene": "/scenes",
@@ -1216,6 +1221,29 @@ async def group_set_white_color(group_name: str, white_req: GroupWhiteRequest):
         raise HTTPException(status_code=501, detail="White/brightness not supported for this device")
     
     return await _execute_group_command(group_name, set_white, "color")
+
+@app.post("/groups/{group_name}/color/temperature", response_model=dict)
+async def group_set_color_temperature(group_name: str, temp_req: GroupColorTempRequest):
+    """
+    Set color temperature for all devices in a group (Kasa devices only)
+    
+    Args:
+        group_name: Name of the group
+        temp_req: Color temperature in Kelvin
+        
+    Returns:
+        Group operation results
+    """
+    async def set_temp(controller):
+        if isinstance(controller, KasaController) and hasattr(controller, "set_color_temp"):
+            success = await controller.set_color_temp(temp_req.temperature)
+            if not success:
+                raise HTTPException(status_code=503, detail="Failed to set color temperature")
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K (kasa)")
+        
+        raise HTTPException(status_code=501, detail="Color temperature not supported for this device")
+    
+    return await _execute_group_command(group_name, set_temp, "color")
 
 # ----- Scene Endpoints -----
 
