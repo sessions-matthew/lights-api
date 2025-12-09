@@ -1173,10 +1173,8 @@ async def group_set_hex_color(group_name: str, hex_req: GroupHexColorRequest):
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set hex color")
             return SuccessResponse(success=True, message=f"Hex color set to {hex_req.color} (philips)")
-        elif isinstance(controller, KasaController) and hasattr(controller, "set_hsv"):
-            import colorsys
-            h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
-            success = await controller.set_hsv(int(h*360), int(s*100), int(v*100))
+        elif isinstance(controller, KasaController) and hasattr(controller, "set_color_hex"):
+            success = await controller.set_color_hex(hex_req.color)
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set hex color")
             return SuccessResponse(success=True, message=f"Hex color set to {hex_req.color} (kasa)")
