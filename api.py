@@ -131,6 +131,10 @@ class GroupHexColorRequest(GroupActionRequest):
     """Hex color request for group"""
     color: str = Field(description="Hex color (e.g., '#FF0000' or 'FF0000')")
 
+class GroupWhiteRequest(GroupActionRequest):
+    """White intensity request for group"""
+    intensity: int = Field(ge=0, le=255, description="White intensity (0-255)")
+
 # Scene Models
 class DevicePreset(BaseModel):
     """Individual device preset within a scene"""
@@ -557,6 +561,7 @@ async def root():
             "group_power_off": "/groups/{group_name}/power/off",
             "group_set_rgb": "/groups/{group_name}/color/rgb",
             "group_set_hex": "/groups/{group_name}/color/hex",
+            "group_set_white": "/groups/{group_name}/color/white",
             "scenes": "/scenes",
             "get_scene": "/scenes/{scene_id}",
             "create_scene": "/scenes",
@@ -1179,6 +1184,40 @@ async def group_set_hex_color(group_name: str, hex_req: GroupHexColorRequest):
         raise HTTPException(status_code=501, detail="Hex color not supported for this device")
     
     return await _execute_group_command(group_name, set_hex, "color")
+
+@app.post("/groups/{group_name}/color/white", response_model=dict)
+async def group_set_white_color(group_name: str, white_req: GroupWhiteRequest):
+    """
+    Set white color for all devices in a group
+    
+    Args:
+        group_name: Name of the group
+        white_req: White intensity value
+        
+    Returns:
+        Group operation results
+    """
+    async def set_white(controller):
+        if isinstance(controller, TrionesController) and hasattr(controller, "set_white"):
+            success = await controller.set_white(white_req.intensity)
+            if not success:
+                raise HTTPException(status_code=503, detail="Failed to set white color")
+            return SuccessResponse(success=True, message=f"White intensity set to {white_req.intensity} (triones)")
+        elif isinstance(controller, PhilipsController) and hasattr(controller, "set_brightness"):
+            success = await controller.set_brightness(white_req.intensity)
+            if not success:
+                raise HTTPException(status_code=503, detail="Failed to set brightness")
+            return SuccessResponse(success=True, message=f"Brightness set to {white_req.intensity} (philips)")
+        elif isinstance(controller, KasaController) and hasattr(controller, "set_brightness"):
+            brightness_percent = int((white_req.intensity / 255) * 100)
+            success = await controller.set_brightness(brightness_percent)
+            if not success:
+                raise HTTPException(status_code=503, detail="Failed to set brightness")
+            return SuccessResponse(success=True, message=f"Brightness set to {brightness_percent}% (kasa)")
+        
+        raise HTTPException(status_code=501, detail="White/brightness not supported for this device")
+    
+    return await _execute_group_command(group_name, set_white, "color")
 
 # ----- Scene Endpoints -----
 
