@@ -92,8 +92,8 @@ class ModeRequest(BaseModel):
     speed: int = Field(default=1, ge=1, le=255, description="Animation speed (1=fastest, 255=slowest)")
 
 class ColorTempRequest(BaseModel):
-    """Color temperature request for Kasa devices"""
-    temperature: int = Field(ge=2500, le=9000, description="Color temperature in Kelvin (2500-9000)")
+    """Color temperature request for devices"""
+    temperature: int = Field(ge=1000, le=40000, description="Color temperature in Kelvin (1000-40000)")
 
 class SuccessResponse(BaseModel):
     """Success response"""
@@ -137,7 +137,7 @@ class GroupWhiteRequest(GroupActionRequest):
 
 class GroupColorTempRequest(GroupActionRequest):
     """Color temperature request for group"""
-    temperature: int = Field(ge=2500, le=9000, description="Color temperature in Kelvin (2500-9000)")
+    temperature: int = Field(ge=1000, le=40000, description="Color temperature in Kelvin (1000-40000)")
 
 # Scene Models
 class DevicePreset(BaseModel):
@@ -884,7 +884,7 @@ async def set_white_color(address: str, white: WhiteRequest):
 @app.post("/devices/{address}/color/temperature", response_model=SuccessResponse)
 async def set_color_temperature(address: str, temp_req: ColorTempRequest):
     """
-    Set color temperature (Kasa devices only)
+    Set color temperature (Kasa and Triones devices)
     
     Args:
         address: Device MAC address
@@ -899,6 +899,12 @@ async def set_color_temperature(address: str, temp_req: ColorTempRequest):
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set color temperature")
             return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K (kasa)")
+        
+        elif isinstance(controller, TrionesController) and hasattr(controller, "set_temperature"):
+            success = await controller.set_temperature(temp_req.temperature)
+            if not success:
+                raise HTTPException(status_code=503, detail="Failed to set color temperature")
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K (triones)")
 
         raise HTTPException(status_code=501, detail="Color temperature not supported for this device")
     
@@ -1225,7 +1231,7 @@ async def group_set_white_color(group_name: str, white_req: GroupWhiteRequest):
 @app.post("/groups/{group_name}/color/temperature", response_model=dict)
 async def group_set_color_temperature(group_name: str, temp_req: GroupColorTempRequest):
     """
-    Set color temperature for all devices in a group (Kasa devices only)
+    Set color temperature for all devices in a group (Kasa and Triones devices)
     
     Args:
         group_name: Name of the group
@@ -1240,6 +1246,12 @@ async def group_set_color_temperature(group_name: str, temp_req: GroupColorTempR
             if not success:
                 raise HTTPException(status_code=503, detail="Failed to set color temperature")
             return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K (kasa)")
+        
+        elif isinstance(controller, TrionesController) and hasattr(controller, "set_temperature"):
+            success = await controller.set_temperature(temp_req.temperature)
+            if not success:
+                raise HTTPException(status_code=503, detail="Failed to set color temperature")
+            return SuccessResponse(success=True, message=f"Color temperature set to {temp_req.temperature}K (triones)")
         
         raise HTTPException(status_code=501, detail="Color temperature not supported for this device")
     
